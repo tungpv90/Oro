@@ -70,12 +70,20 @@ export const mediaApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  update: (id: string, data: { title?: string; description?: string; visibility?: string; price?: number }) =>
+    api.put(`/media/${id}`, data),
   delete: (id: string) => api.delete(`/media/${id}`),
   processAnimation: (id: string, options?: { fps?: number; width?: number; height?: number }) =>
     api.post(`/media/${id}/process-animation`, options),
   getJobStatus: (jobId: string) => api.get(`/media/animation-jobs/${jobId}`),
   downloadFrames: (jobId: string) =>
     api.get(`/media/animation-jobs/${jobId}/download`, { responseType: 'blob' }),
+};
+
+// ─── Feed (Public) ────────────────────────────────
+export const feedApi = {
+  list: (params?: { page?: number; limit?: number; type?: string; feed?: string }) =>
+    api.get('/feed', { params }),
 };
 
 // ─── Admin ────────────────────────────────────────
@@ -88,6 +96,8 @@ export const adminApi = {
   deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
   media: (params?: { page?: number; limit?: number }) =>
     api.get('/admin/media', { params }),
+  updateMedia: (id: string, data: Record<string, unknown>) =>
+    api.put(`/admin/media/${id}`, data),
   deleteMedia: (id: string) => api.delete(`/admin/media/${id}`),
 };
 

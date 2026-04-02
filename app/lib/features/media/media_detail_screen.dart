@@ -193,7 +193,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           percent: bleState.transferProgress,
                           center: Text('${(bleState.transferProgress * 100).toStringAsFixed(0)}%'),
                           progressColor: Theme.of(context).colorScheme.primary,
-                          borderRadius: BorderRadius.circular(10),
+                          linearStrokeCap: LinearStrokeCap.roundAll,
                         ),
                       ],
 

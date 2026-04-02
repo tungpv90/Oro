@@ -23,6 +23,11 @@ export enum MediaStatus {
   FAILED = 'failed',
 }
 
+export enum MediaVisibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
+}
+
 @Entity('media')
 export class Media {
   @PrimaryGeneratedColumn('uuid')
@@ -58,6 +63,27 @@ export class Media {
 
   @Column({ nullable: true })
   mimeType: string;
+
+  @Column({ type: 'enum', enum: MediaVisibility, default: MediaVisibility.PUBLIC })
+  visibility: MediaVisibility;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  price: number;
+
+  @Column({ default: false })
+  isFeatured: boolean;
+
+  @Column({ default: 0 })
+  viewCount: number;
+
+  @Column({ default: 0 })
+  purchaseCount: number;
+
+  @Column({ nullable: true })
+  title: string;
+
+  @Column({ nullable: true })
+  description: string;
 
   @OneToMany(() => AnimationJob, (job) => job.media)
   animationJobs: AnimationJob[];

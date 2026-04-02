@@ -9,11 +9,11 @@ import { Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs';
-import { Media, MediaType, MediaStatus } from './entities/media.entity';
+import { Media, MediaType, MediaStatus, MediaVisibility } from './entities/media.entity';
 import { AnimationJob, AnimationStatus } from './entities/animation-job.entity';
 import { StorageService } from '../storage/storage.service';
 import { VideoProcessingService } from './services/video-processing.service';
-import { ProcessAnimationDto, MediaQueryDto } from './dto/media.dto';
+import { ProcessAnimationDto, MediaQueryDto, FeedQueryDto, UpdateMediaDto } from './dto/media.dto';
 
 @Injectable()
 export class MediaService {
@@ -140,6 +140,76 @@ export class MediaService {
     }
 
     return this.storage.getFileBuffer(job.outputPath);
+  }
+
+  // ─── Public Feed ──────────────────────────────────
+  async getPublicFeed(query: FeedQueryDto) {
+    const { page = 1, limit = 20, type, feed = 'latest' } = query;
+
+    const qb = this.mediaRepo.createQueryBuilder('media')
+      .leftJoinAndSelect('media.user', 'user')
+      .where('media.visibility = :visibility', { visibility: MediaVisibility.PUBLIC })
+      .andWhere('media.status = :status', { status: MediaStatus.READY });
+
+    if (type) {
+      qb.andWhere('media.type = :type', { type });
+    }
+
+    switch (feed) {
+      case 'hot':
+        qb.orderBy('media.viewCount', 'DESC');
+        break;
+      case 'recommended':
+        qb.andWhere('media.isFeatured = :featured', { featured: true })
+          .orderBy('media.createdAt', 'DESC');
+        break;
+      case 'free':
+        qb.andWhere('media.price = 0')
+          .orderBy('media.viewCount', 'DESC');
+        break;
+      case 'best_selling':
+        qb.andWhere('media.price > 0')
+          .orderBy('media.purchaseCount', 'DESC');
+        break;
+      default:
+        qb.orderBy('media.createdAt', 'DESC');
+    }
+
+    const [items, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const mediaWithUrls = await Promise.all(
+      items.map(async (item) => ({
+        ...item,
+        originalUrl: await this.storage.getPresignedUrl(item.originalUrl),
+        thumbnailUrl: item.thumbnailUrl
+          ? await this.storage.getPresignedUrl(item.thumbnailUrl)
+          : null,
+        user: item.user ? { id: item.user.id, name: item.user.name, avatar: item.user.avatar } : null,
+      })),
+    );
+
+    return { items: mediaWithUrls, total, page, limit };
+  }
+
+  async updateMedia(id: string, userId: string, dto: UpdateMediaDto): Promise<Media> {
+    const media = await this.mediaRepo.findOne({ where: { id, userId } });
+    if (!media) throw new NotFoundException('Media not found');
+    Object.assign(media, dto);
+    const saved = await this.mediaRepo.save(media);
+    return {
+      ...saved,
+      originalUrl: await this.storage.getPresignedUrl(saved.originalUrl),
+    };
+  }
+
+  async adminUpdateMedia(id: string, dto: UpdateMediaDto): Promise<Media> {
+    const media = await this.mediaRepo.findOne({ where: { id } });
+    if (!media) throw new NotFoundException('Media not found');
+    Object.assign(media, dto);
+    return this.mediaRepo.save(media);
   }
 
   // ─── Admin ───────────────────────────────────────────

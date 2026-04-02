@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Param,
   Body,
@@ -18,7 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { Response } from 'express';
 import { MediaService } from './media.service';
-import { ProcessAnimationDto, MediaQueryDto } from './dto/media.dto';
+import { ProcessAnimationDto, MediaQueryDto, FeedQueryDto, UpdateMediaDto } from './dto/media.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -71,6 +72,16 @@ export class MediaController {
     @CurrentUser('id') userId: string,
   ) {
     return this.mediaService.findOne(id, userId);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update media (title, description, visibility, price)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateMediaDto,
+  ) {
+    return this.mediaService.updateMedia(id, userId, dto);
   }
 
   @Delete(':id')
@@ -134,5 +145,26 @@ export class AdminMediaController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.mediaService.adminRemove(id);
     return { message: 'Media deleted' };
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update any media (admin)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMediaDto,
+  ) {
+    return this.mediaService.adminUpdateMedia(id, dto);
+  }
+}
+
+@ApiTags('Feed')
+@Controller('feed')
+export class FeedController {
+  constructor(private readonly mediaService: MediaService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get public media feed (no auth required)' })
+  async getFeed(@Query() query: FeedQueryDto) {
+    return this.mediaService.getPublicFeed(query);
   }
 }

@@ -1,13 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:oro_app/core/api/api_services.dart';
 import 'package:oro_app/features/auth/auth_provider.dart';
+import 'package:go_router/go_router.dart';
 
-final mediaListProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final api = ref.read(mediaApiProvider);
-  return api.list();
+// ─── Feed providers for each section ──────────────────
+final _hotProvider = FutureProvider.autoDispose<List>((ref) async {
+  final api = ref.read(feedApiProvider);
+  final data = await api.list(feed: 'hot', limit: 10);
+  return (data['items'] as List?) ?? [];
+});
+
+final _recommendedProvider = FutureProvider.autoDispose<List>((ref) async {
+  final api = ref.read(feedApiProvider);
+  final data = await api.list(feed: 'recommended', limit: 10);
+  return (data['items'] as List?) ?? [];
+});
+
+final _freeProvider = FutureProvider.autoDispose<List>((ref) async {
+  final api = ref.read(feedApiProvider);
+  final data = await api.list(feed: 'free', limit: 10);
+  return (data['items'] as List?) ?? [];
+});
+
+final _bestSellingProvider = FutureProvider.autoDispose<List>((ref) async {
+  final api = ref.read(feedApiProvider);
+  final data = await api.list(feed: 'best_selling', limit: 10);
+  return (data['items'] as List?) ?? [];
+});
+
+final _latestProvider = FutureProvider.autoDispose<List>((ref) async {
+  final api = ref.read(feedApiProvider);
+  final data = await api.list(feed: 'latest', limit: 10);
+  return (data['items'] as List?) ?? [];
 });
 
 class HomeScreen extends ConsumerWidget {
@@ -15,175 +41,218 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaAsync = ref.watch(mediaListProvider);
+    final auth = ref.watch(authProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Oro'),
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bluetooth),
-            onPressed: () => context.push('/devices'),
-            tooltip: 'Devices',
-          ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => context.push('/profile'),
-            tooltip: 'Profile',
-          ),
+          if (!auth.isAuthenticated)
+            TextButton(
+              onPressed: () => context.go('/login'),
+              child: const Text('Login'),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _pickAndUpload(context, ref),
-        icon: const Icon(Icons.upload),
-        label: const Text('Upload'),
-      ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(mediaListProvider),
-        child: mediaAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (data) {
-            final items = (data['items'] as List?) ?? [];
-            if (items.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.photo_library_outlined, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text('No media yet', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    SizedBox(height: 8),
-                    Text('Tap + to upload images or videos', style: TextStyle(color: Colors.grey)),
-                  ],
-                ),
-              );
-            }
-
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1,
-              ),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final media = items[index] as Map<String, dynamic>;
-                return _MediaCard(
-                  media: media,
-                  onTap: () => context.push('/media/${media['id']}'),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickAndUpload(BuildContext context, WidgetRef ref) async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        onRefresh: () async {
+          ref.invalidate(_hotProvider);
+          ref.invalidate(_recommendedProvider);
+          ref.invalidate(_freeProvider);
+          ref.invalidate(_bestSellingProvider);
+          ref.invalidate(_latestProvider);
+        },
+        child: ListView(
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text('Pick Image'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.videocam),
-              title: const Text('Pick Video'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
+            _FeedSection(title: '⭐ Recommended', provider: _recommendedProvider, color: Colors.purple.shade50),
+            _FeedSection(title: '🔥 Hot', provider: _hotProvider, color: Colors.orange.shade50),
+            _FeedSection(title: '🆓 Free', provider: _freeProvider, color: Colors.green.shade50),
+            _FeedSection(title: '💰 Best Selling', provider: _bestSellingProvider, color: Colors.amber.shade50),
+            _FeedSection(title: '🆕 Latest', provider: _latestProvider, color: Colors.blue.shade50),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
-
-    if (source == null) return;
-
-    final file = await picker.pickImage(source: source) ?? await picker.pickVideo(source: source);
-    if (file == null) return;
-
-    try {
-      final api = ref.read(mediaApiProvider);
-      await api.upload(file.path, file.name);
-      ref.invalidate(mediaListProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Upload successful!')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
-      }
-    }
   }
 }
 
-class _MediaCard extends StatelessWidget {
-  final Map<String, dynamic> media;
-  final VoidCallback onTap;
+// ─── Horizontal feed section ──────────────────────────
+class _FeedSection extends ConsumerWidget {
+  final String title;
+  final AutoDisposeFutureProvider<List> provider;
+  final Color color;
 
-  const _MediaCard({required this.media, required this.onTap});
+  const _FeedSection({required this.title, required this.provider, required this.color});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(provider);
+
+    return async.when(
+      loading: () => _SectionShimmer(title: title, color: color),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Container(
+          color: color,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 160,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final media = items[index] as Map<String, dynamic>;
+                    return _HomeMediaCard(media: media);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SectionShimmer extends StatelessWidget {
+  final String title;
+  final Color color;
+  const _SectionShimmer({required this.title, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = media['type'] == 'video';
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.grey.shade200,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (media['originalUrl'] != null)
-              Image.network(
-                media['originalUrl'],
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
-              )
-            else
-              const Center(child: Icon(Icons.image, size: 48, color: Colors.grey)),
-            if (isVideo)
-              const Center(
-                child: Icon(Icons.play_circle_fill, size: 48, color: Colors.white70),
+    return Container(
+      color: color,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 160,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: 4,
+              itemBuilder: (_, __) => Container(
+                width: 120,
+                height: 120,
+                margin: const EdgeInsets.only(right: 14),
+                decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle),
               ),
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black54, Colors.transparent],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeMediaCard extends StatelessWidget {
+  final Map<String, dynamic> media;
+  const _HomeMediaCard({required this.media});
+
+  @override
+  Widget build(BuildContext context) {
+    final price = (media['price'] is num) ? (media['price'] as num).toDouble() : 0.0;
+    final isFeatured = media['isFeatured'] == true;
+    final viewCount = media['viewCount'] ?? 0;
+    final title = media['title'] ?? media['originalFilename'] ?? 'Untitled';
+    final user = media['user'] as Map<String, dynamic>?;
+    final imageUrl = media['originalUrl'] as String?;
+
+    return Container(
+      width: 160,
+      margin: const EdgeInsets.only(right: 10),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  imageUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(color: Colors.grey[200]),
+                          errorWidget: (_, __, ___) => Container(
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        )
+                      : Container(color: Colors.grey[200], child: const Icon(Icons.image)),
+                  Positioned(
+                    top: 4, right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: price > 0 ? Colors.amber : Colors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        price > 0 ? '\$${price.toStringAsFixed(2)}' : 'FREE',
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  media['originalFilename'] ?? 'Untitled',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  if (isFeatured)
+                    Positioned(
+                      top: 4, left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.purple, borderRadius: BorderRadius.circular(10)),
+                        child: const Text('⭐', style: TextStyle(fontSize: 9)),
+                      ),
+                    ),
+                  if (media['type'] == 'video')
+                    const Center(child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 32)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 1),
+                  Row(
+                    children: [
+                      Icon(Icons.visibility, size: 10, color: Colors.grey[500]),
+                      const SizedBox(width: 2),
+                      Text('$viewCount', style: TextStyle(fontSize: 9, color: Colors.grey[500])),
+                      if (user?['name'] != null) ...[
+                        const Spacer(),
+                        Flexible(
+                          child: Text(user!['name'], style: TextStyle(fontSize: 9, color: Colors.grey[500]),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

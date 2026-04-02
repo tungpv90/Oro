@@ -58,6 +58,21 @@ class MediaApi {
     await _dio.delete('/media/$id');
   }
 
+  Future<Map<String, dynamic>> update(String id, {
+    String? title,
+    String? description,
+    String? visibility,
+    double? price,
+  }) async {
+    final response = await _dio.put('/media/$id', data: {
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (visibility != null) 'visibility': visibility,
+      if (price != null) 'price': price,
+    });
+    return response.data;
+  }
+
   Future<Map<String, dynamic>> processAnimation(String id, {int fps = 10}) async {
     final response = await _dio.post('/media/$id/process-animation', data: {'fps': fps});
     return response.data;
@@ -100,5 +115,30 @@ class DevicesApi {
 
   Future<void> delete(String id) async {
     await _dio.delete('/devices/$id');
+  }
+}
+
+// ─── Feed API (Public) ───────────────────────────────
+final feedApiProvider = Provider<FeedApi>((ref) {
+  return FeedApi(ref.read(dioProvider));
+});
+
+class FeedApi {
+  final Dio _dio;
+  FeedApi(this._dio);
+
+  Future<Map<String, dynamic>> list({
+    int page = 1,
+    int limit = 20,
+    String? type,
+    String? feed,
+  }) async {
+    final response = await _dio.get('/feed', queryParameters: {
+      'page': page,
+      'limit': limit,
+      if (type != null) 'type': type,
+      if (feed != null) 'feed': feed,
+    });
+    return response.data;
   }
 }

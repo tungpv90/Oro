@@ -82,10 +82,10 @@ export default function DashboardPage() {
         {isLoading ? (
           <div className="mt-8 text-center text-gray-500">Loading...</div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {data?.items?.map((media: Record<string, string>) => (
-              <div key={media.id} className="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
-                <div className="aspect-video bg-gray-100">
+              <div key={media.id} className="group flex flex-col items-center">
+                <div className="relative h-28 w-28 rounded-full overflow-hidden ring-2 ring-primary-200 shadow-md hover:ring-primary-500 transition-all">
                   {media.type === 'image' ? (
                     <img
                       src={media.originalUrl}
@@ -93,30 +93,33 @@ export default function DashboardPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <video src={media.originalUrl} className="h-full w-full object-cover" />
+                    <div className="relative h-full w-full">
+                      <video src={media.originalUrl} className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg className="h-8 w-8 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <div className="p-4">
-                  <p className="truncate text-sm font-medium text-gray-900">
-                    {media.originalFilename || 'Untitled'}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">{media.type}</p>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => processMutation.mutate(media.id)}
-                      loading={processMutation.isPending}
-                    >
-                      Process
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => deleteMutation.mutate(media.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+                <p className="mt-2 truncate text-sm font-medium text-gray-900 max-w-[7rem] text-center">
+                  {media.originalFilename || 'Untitled'}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">{media.type}</p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => processMutation.mutate(media.id)}
+                    loading={processMutation.isPending}
+                  >
+                    Process
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => deleteMutation.mutate(media.id)}
+                  >
+                    Delete
+                  </Button>
                 </div>
               </div>
             ))}

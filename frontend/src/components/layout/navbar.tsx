@@ -17,6 +17,9 @@ export function Navbar() {
           </Link>
 
           <div className="flex items-center gap-4">
+            <Link href="/explore" className="text-sm text-gray-700 hover:text-primary-600">
+              Explore
+            </Link>
             {session ? (
               <>
                 <Link href="/dashboard" className="text-sm text-gray-700 hover:text-primary-600">
