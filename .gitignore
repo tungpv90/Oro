@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# Docker
+postgres_data/
+minio_data/
+redis_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Flutter
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Backend
+backend/dist/
+backend/uploads/
